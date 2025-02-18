@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import nodemailer from "nodemailer";
 
 dotenv.config(); // Load environment variables
 
@@ -42,24 +43,52 @@ export const register = async (req, res) => {
             });
         }
 
+        // ✅ Hash the Password before storing
+        // const hashedPassword = await bcrypt.hash(password, 10);
+
         // ✅ Create a new user
         const newUser = await User.create({
             name,
             email,
-            password,
+            password, // Store hashed password
         });
 
         // ✅ Generate JWT Token
-        const token = jwt.sign({ userId: newUser._id, email: newUser.email }, SECRET_KEY, { expiresIn: "7d" });
+        const token = jwt.sign(
+            { userId: newUser._id, email: newUser.email },
+            SECRET_KEY,
+            { expiresIn: "7d" }
+        );
+
+        // ✅ Set up Nodemailer transporter
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+            },
+        });
+
+        // ✅ Email content
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: newUser.email, // Use correct variable
+            subject: "Welcome to CoursePro - Registration Successful 🎉",
+            text: `Hello ${newUser.name},\n\nWelcome to CoursePro! Your account has been successfully registered.\n\nYou can now start your journey with us!!.\n\nBest regards,\n TECHWIZLALIT Pvt. Ltd `,
+        };
+
+        // ✅ Send the email asynchronously
+        await transporter.sendMail(mailOptions);
 
         return res.status(201).json({
-            message: "User registered successfully!",
+            message: "User registered successfully! ✅",
             success: true,
             user: {
+                id: newUser._id,
                 name: newUser.name,
                 email: newUser.email,
-                role: newUser.role,
-                subscription: newUser.subscription
+                role: newUser.role || "user", // Default role if not provided
+                subscription: newUser.subscription || "none", // Default subscription
             },
             token, // Send JWT Token
         });
@@ -72,6 +101,10 @@ export const register = async (req, res) => {
         });
     }
 };
+
+
+
+
 
 // 🟢 LOGIN CONTROLLER
 export const login = async (req, res) => {
